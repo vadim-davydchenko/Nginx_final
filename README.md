@@ -39,3 +39,50 @@ The app1 / app2 servers also host the nginx web server, which accepts connection
     cd /opt/nginx-1.18.0/
     patch -p1 < /opt/nginx_upstream_check_module/check_1.16.1+.patch
     ```
+  - Build package
+    
+    `pkg-buildpackage -b --no-sign`
+  
+  - Install package
+    
+    `dpkg -i /opt/nginx-core_1.18.0-0ubuntu1.3_amd64.deb`
+    
+- Get an `ssl` certificate for `app.${base_domain}` on both balancers `(lb1 / lb2)`
+  ```
+  sudo apt install certbot -y
+  sudo mkdir -p /opt/www/acme
+  sudo letsencrypt certonly --webroot -w /opt/www/acme -d app.${base_domain} -d app.${base_domain}
+  ```
+  - After receiving the certificate, we send the keys to `lb2` and `lb2` create a folder
+    ```
+    sudo mkdir -p /etc/letsencrypt/live/app.${base_domain}
+    scp -r /etc/letsencrypt/live/app.${base_domain}/* user@lb2:/etc/letsencrypt/live/app.${base_domain}
+    ```
+- Setting [lb1](https://github.com/vadim-davydchenko/nginx_final/blob/master/lb1.conf) and [lb2](https://github.com/vadim-davydchenko/nginx_final/blob/master/lb2.conf)
+
+  - Setting logging в in `nginx.conf`
+  ```
+  http {
+  log_format format '"$request "$request_time" "$upstream_response_time"';
+        access_log /var/log/nginx/access.log;
+        error_log /var/log/nginx/error.log;
+  }
+  ```
+- Install and setting `nginx-exporter` on the both LB
+  ```
+  wget https://github.com/martin-helmich/prometheus-nginxlog-exporter/releases/download/v1.8.0/prometheus-nginxlog-exporter_1.8.0_linux_amd64.deb
+  sudo apt install ./prometheus-nginxlog-exporter_1.8.0_linux_amd64.deb
+  sudo systemctl start prometheus-nginxlog-exporter
+  sudo systemctl status prometheus-nginxlog-exporter
+  sudo docker run --name nginx-exporter -p 4040:4040 -v /var/log/nginx/access.log:/mnt/nginxlogs -d -v /etc/prometheus-nginxlog-exporter.hcl:/etc/prometheus-nginxlog-   exporter.hcl quay.io/martinhelmich/prometheus-nginxlog-exporter -config-file /etc/prometheus-nginxlog-exporter.hcl
+  ```
+  - Config in [/etc/prometheus-nginxlog-exporter.hcl](https://github.com/vadim-davydchenko/nginx_final/blob/master/prometheus-nginxlog-exporter.hcl)
+
+#### Setting application app1/app2
+
+- Run application `whoami` on the hosts
+```
+sudo chmod +x ./whoami 
+./whoami -port 8080 &
+```
+- Setting [app1](https://github.com/vadim-davydchenko/nginx_final/blob/master/app1.conf) and [app2]()
