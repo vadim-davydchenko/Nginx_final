@@ -1,4 +1,4 @@
-At the top is our client, which offers hosting at https://app.${base_domain}.
+At the top is our client, which offers hosting at `https://app.${base_domain}`
 
 In this case, DNS acts as a balancer - the app.${base_domain} domain has two A records and, accordingly, some of the clients, when requested, will receive the address of one server, and the other part - of another.
 
