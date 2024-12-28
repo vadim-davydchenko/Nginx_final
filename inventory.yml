@@ -1,0 +1,14 @@
+all:
+  children:
+    load_balancers:
+      hosts:
+        lb1:
+          ansible_host: <ip_lb1>
+        lb2:
+          ansible_host: <ip_lb2>
+    app_servers:
+      hosts:
+        app1:
+          ansible_host: <ip_app1>
+        app2:
+          ansible_host: <ip_app2>

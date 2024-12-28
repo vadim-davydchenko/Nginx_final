@@ -1,0 +1,24 @@
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Configure application server
+  ansible.builtin.template:
+    src: "{{ inventory_hostname }}.conf.j2"
+    dest: "/etc/nginx/conf.d/app{{ invetory_hostname }}.conf"
+    mode: '0644'
+  notify: Restart Nginx
+
+- name: Download whoami application
+  ansible.builtin.get_url:
+    url: https://rebrainme-workshop-apps.s3.amazonaws.com/nginx/whoami
+    dest: /usr/local/bin/whoami
+    mode: '0755'
+
+- name: Start whoami application
+  ansible.builtin.shell: |
+    /usr/local/bin/whoami -port {{ whoami_port }} &
+  args:
+    creates: /var/run/whoami.pid

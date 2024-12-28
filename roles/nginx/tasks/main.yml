@@ -1,0 +1,7 @@
+- name: Install and configure Nginx load balancers
+  ansible.builtin.include_tasks: lb.yml
+  when: "'load_balancers' in groups"
+
+- name: Install and configure Nginx application servers
+  ansible.builtin.include_tasks: app.yml
+  when: "'app_servers' in groups"

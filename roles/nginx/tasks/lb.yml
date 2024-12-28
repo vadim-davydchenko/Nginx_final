@@ -1,0 +1,80 @@
+- name: Install dependencies for nginx
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  with_items:
+    - nginx
+    - cerbot
+    - build-essential
+
+- name: Configure nginx with upstream_check_module
+  ansible.builtin.shell: |
+    apt build-dep nginx -y
+    cd /opt
+    apt source nginx
+    git clone https://github.com/yaoweibin/nginx_upstream_check_module
+    cd /opt/nginx-*/debian
+    sed -i '/common_configure_flags/ s/$/ --add-module=\/opt\/nginx_upstream_check_module/' rules
+    cd ..
+    patch -p1 < /opt/nginx_upstream_check_module/check_1.16.1+.patch
+    dpkg-buildpackage -b --no-sign
+    dpkg -i ../nginx-core*.deb
+  changed_when: false
+
+- name: Configure nginx load balancer
+  ansible.builtin.template:
+    src: "lb{{ invetory_hostname[-1] }}.conf.j2"
+    dest: "/etc/nginx/conf.d/lb{{ invetory_hostname[-1] }}.conf"
+    mode: '0644'
+
+- name: Create directory for certificates
+  ansible.builtin.file:
+    path: "/opt/www/acme"
+    state: directory
+    mode: '0755'
+
+- name: Obtain SSL certificates
+  ansible.builtin.cerbot:
+    name: "{{ base_domain }}"
+    state: present
+    agree_tos: true
+    webroot: "/opt/www/acme"
+    domain: "app.{{ base_domain }}"
+    email: "admin@{{ base_domain }}"
+  notify: "Restart Nginx"
+
+- name: Download Prometheus Nginx Log Exporter package
+  ansible.builtin.get_url:
+    url: https://github.com/martin-helmich/prometheus-nginxlog-exporter/releases/download/v1.8.0/prometheus-nginxlog-exporter_1.8.0_linux_amd64.deb
+    dest: /tmp/prometheus-nginxlog-exporter_1.8.0_linux_amd64.deb
+    mode: '0644'
+
+- name: Install Prometheus Nginx Log Exporter package
+  ansible.builtin.apt:
+    name: /tmp/prometheus-nginxlog-exporter_1.8.0_linux_amd64.deb
+    state: present
+
+- name: Ensure Prometheus Nginx Log Exporter is running
+  ansible.builtin.service:
+    name: prometheus-nginxlog-exporter
+    state: started
+    enabled: true
+
+- name: Copy Prometheus Nginx Log Exporter configuration
+  ansible.builtin.copy:
+    src: files/prometheus-nginxlog-exporter.hcl
+    dest: "{{ prometheus_exporter_config }}"
+    mode: '0644'
+
+- name: Start Prometheus Nginx Log Exporter container
+  community.docker.docker_container:
+    name: nginx-exporter
+    image: quay.io/martinhelmich/prometheus-nginxlog-exporter
+    state: started
+    ports:
+      - "{{ prometheus_exporter_port }}:{{ prometheus_exporter_port }}"
+    volumes:
+      - "{{ access_log }}:/mnt/nginxlogs"
+      - "{{ prometheus_exporter_config }}:/etc/prometheus-nginxlog-exporter.hcl"
+    command: "-config-file /etc/prometheus-nginxlog-exporter.hcl"

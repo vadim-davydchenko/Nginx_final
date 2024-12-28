@@ -1,0 +1,20 @@
+base_domain: kis.im
+
+lb_servers:
+  - app1
+  - app2
+
+ssl_cert_path: "/etc/letsencrypt/live/app.{{ base_domain }}/fullchain.pem"
+ssl_key_path: "/etc/letsencrypt/live/app.{{ base_domain }}/privkey.pem"
+
+app_servers:
+  - { name: "app1", ip: "127.0.0.1", port: 8080 }
+  - { name: "app2", ip: "127.0.0.1", port: 8080 }
+
+log_format: '"$request "$request_time" "$upstream_response_time"'
+access_log: "/var/log/nginx/access.log"
+error_log: "/var/log/nginx/error.log"
+
+prometheus_exporter_port: 4040
+prometheus_exporter_config: "/etc/prometheus-nginxlog-exporter.hcl"
+whoami_port: 8080
